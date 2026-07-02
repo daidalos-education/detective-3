@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nave Alienígena - Supervivencia Extrema</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #f0f0f5;
+            font-family: 'Courier New', Courier, monospace;
+            perspective: 800px;
+        }
+
+        #entorno {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #pantalla3D {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+        }
+
+        /* SUELO (Gris claro #d3d3d3) */
+        #suelo {
+            position: absolute;
+            bottom: 0;
+            left: -50%;
+            width: 200%;
+            height: 50%;
+            background-color: #d3d3d3;
+            background-image: 
+                linear-gradient(rgba(0, 255, 242, 0.4) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 255, 242, 0.4) 2px, transparent 2px);
+            background-size: 50px 50px;
+            background-position: center top;
+            z-index: 2;
+            transform-origin: center top;
+            transform: rotateX(85deg);
+        }
+
+        /* TECHO (Blanco brillante) */
+        #techo {
+            position: absolute;
+            top: 0;
+            left: -50%;
+            width: 200%;
+            height: 50%;
+            background-color: #ffffff;
+            background-image: 
+                linear-gradient(rgba(0, 255, 242, 0.2) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(0, 255, 242, 0.2) 2px, transparent 2px);
+            background-size: 50px 50px;
+            background-position: center bottom;
+            z-index: 2;
+            transform-origin: center bottom;
+            transform: rotateX(-85deg);
+        }
+
+        /* UI CONTADOR DE TIEMPO (Parte Superior) */
+        #temporizador {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ff00ea;
+            text-shadow: 0 0 12px #ff00ea;
+            font-size: 2.5rem;
+            font-weight: bold;
+            background: rgba(5, 5, 8, 0.9);
+            padding: 10px 30px;
+            border-radius: 8px;
+            border: 2px solid #00fff2;
+            box-shadow: 0 0 20px rgba(0, 255, 242, 0.3);
+            z-index: 30;
+            pointer-events: none;
+        }
+
+        /* UI / HUD INFERIOR */
+        .ui-texto {
+            position: fixed;
+            bottom: 30px;
+            left: 30px;
+            color: #00fff2;
+            text-shadow: 0 0 10px #00fff2;
+            font-size: 1.1rem;
+            pointer-events: none;
+            z-index: 20;
+            background: rgba(5, 5, 8, 0.85);
+            padding: 15px 20px;
+            border-radius: 5px;
+            border: 1px solid #ff00ea;
+            box-shadow: 0 0 15px rgba(255, 0, 234, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .contenedor-vida {
+            width: 200px;
+            height: 15px;
+            background: #200005;
+            border: 1px solid #ff0055;
+            border-radius: 3px;
+            overflow: hidden;
+            box-shadow: 0 0 8px rgba(255, 0, 85, 0.3);
+            margin-top: 5px;
+        }
+
+        #barra-vida {
+            width: 100%;
+            height: 100%;
+            background: #ff0055;
+            box-shadow: 0 0 12px #ff0055;
+            transition: width 0.1s ease;
+        }
+
+        #crosshair {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 10px;
+            height: 10px;
+            border: 2px solid #00fff2;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 8px #00fff2;
+            z-index: 15;
+            pointer-events: none;
+        }
+
+        #arma-laser {
+            position: fixed;
+            bottom: -10px;
+            right: 35%;
+            font-size: 6rem;
+            z-index: 25;
+            pointer-events: none;
+            transform: scaleX(-1);
+            transition: transform 0.05s ease;
+        }
+
+        #arma-laser.recat {
+            transform: scaleX(-1) translate(-20px, 20px) rotate(15deg);
+        }
+
+        .pantalla-estado {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 100;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 2rem;
+            text-align: center;
+        }
+
+        #gameover { background: rgba(20, 0, 5, 0.95); color: #ff0055; text-shadow: 0 0 15px #ff0055; }
+        #victory { background: rgba(0, 15, 20, 0.95); color: #00fff2; text-shadow: 0 0 15px #00fff2; }
+
+        .pantalla-estado button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: transparent;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+        #gameover button { border: 2px solid #ff0055; color: #ff0055; box-shadow: 0 0 10px #ff0055; }
+        #victory button { border: 2px solid #00fff2; color: #00fff2; box-shadow: 0 0 10px #00fff2; }
+    </style>
+
+<script src="https://cdn.jsdelivr.net/npm/nipplejs@0.10.2/dist/nipplejs.min.js"></script>
+<style>
+#joyZone{position:fixed;left:20px;bottom:20px;width:180px;height:180px;z-index:60}
+#fireBtn,#healBtn{position:fixed;right:25px;border-radius:50%;width:90px;height:90px;z-index:60;font-size:36px}
+#fireBtn{bottom:30px}#healBtn{bottom:140px;width:70px;height:70px;font-size:28px}
+@media(pointer:fine){#joyZone,#fireBtn,#healBtn{display:none}}
+</style>
+</head>
+<body>
+
+<div id="intro" style="position:fixed;inset:0;background:rgba(0,0,0,.92);color:#00fff2;z-index:9999;display:flex;justify-content:center;align-items:center;text-align:left;padding:25px;font-family:Courier New">
+<div style="max-width:700px;border:2px solid #00fff2;padding:25px;background:#061015">
+<h1 style="text-align:center;color:#ff00ea">MISIÓN</h1>
+<p>Hay muchos aliens en la nave. <strong>Solo uno es el alien malo.</strong> Tu misión es descubrir cuál es y eliminarlo.</p>
+<ul>
+<li>👾 Si disparas y matas a <strong>un alien inofensivo</strong>, pierdes inmediatamente.</li>
+<li>😈 El alien malo atacará a los demás y también intentará matarte.</li>
+<li>🐱 Si encuentras al gato y lo tocas, oirás un miau y recuperarás vida.</li>
+<li>⏱️ También ganas si consigues sobrevivir hasta que llegue el rescate.</li>
+</ul>
+<div style="text-align:center"><button onclick="document.getElementById('intro').style.display='none'" style="font-size:20px;padding:10px 20px">¡Comenzar misión!</button></div>
+</div></div>
+
+
+    <div id="entorno">
+        <div id="techo"></div>
+        <div id="temporizador">05:00</div>
+        <canvas id="pantalla3D"></canvas>
+        <div id="suelo"></div>
+    </div>
+    
+    <div id="crosshair"></div>
+    <div id="arma-laser">🔫</div>
+
+    <div class="ui-texto">
+        <p><strong style="color:#ff0055; text-shadow: 0 0 10px #ff0055;">[ROLES COMBINADOS]</strong> Guardián y Cazador</p>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span>SISTEMA VITAL:</span>
+            <div class="contenedor-vida"><div id="barra-vida"></div></div>
+        </div>
+        <p><strong style="color:#ffaa00;">[E] Botiquín</strong> (Curar Aliens Cercanos)</p>
+        <p><strong>[Click Izq.]</strong> Disparar | <span id="vida-letal">> HP Enemigo: 10</span></p>
+        <p><strong>[W,A,S,D]</strong> Moverse | <span id="contador-aliens">> Biomasa Viva: 8</span></p>
+    </div>
+
+    <div id="gameover" class="pantalla-estado">
+        <h1>CONEXIÓN PERDIDA</h1>
+        <p>Sistemas vitales colapsados.</p>
+        <button onclick="reiniciarJuego()">RECONECTAR SISTEMA</button>
+    </div>
+
+    <div id="victory" class="pantalla-estado">
+        <h1>¡RESCATE COMPLETADO!</h1>
+        <p>Has aguantado la posición. Los sistemas de la nave vuelven a estar a salvo.</p>
+        <button onclick="reiniciarJuego()">INICIAR NUEVA PATRULLA</button>
+    </div>
+<script>
+        const canvas = document.getElementById('pantalla3D');
+        const ctx = canvas.getContext('2d');
+        const suelo = document.getElementById('suelo');
+        const techo = document.getElementById('techo');
+        const uiContador = document.getElementById('contador-aliens');
+        const uiVida = document.getElementById('barra-vida');
+        const uiVidaLetal = document.getElementById('vida-letal');
+        const uiTemporizador = document.getElementById('temporizador');
+        const armaLaser = document.getElementById('arma-laser');
+        const pantallaGameOver = document.getElementById('gameover');
+        const pantallaVictory=document.getElementById('victory');
+
+// --- SISTEMA DE SONIDOS GENERADOS POR CÓDIGO ---
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+const audioCtx = new AudioCtx();
+
+function tono(freq, dur, tipo='sine', vol=0.08, inicio=0){
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = tipo;
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime + inicio);
+    gain.gain.setValueAtTime(vol, audioCtx.currentTime + inicio);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + inicio + dur);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(audioCtx.currentTime + inicio);
+    osc.stop(audioCtx.currentTime + inicio + dur);
+}
+
+function playLaser(){
+    tono(1400, 0.06, 'sawtooth', 0.06);
+    tono(900, 0.08, 'square', 0.03);
+}
+
+function playMeow(){
+    // Miau más natural
+    tono(780,0.08,'triangle',0.06);
+    tono(620,0.10,'triangle',0.05,0.07);
+    tono(980,0.12,'triangle',0.05,0.18);
+}
+
+function playWin(){
+    tono(523, 0.15, 'triangle', 0.06);
+    tono(659, 0.15, 'triangle', 0.06, 0.15);
+    tono(784, 0.18, 'triangle', 0.07, 0.30);
+    tono(1047, 0.30, 'triangle', 0.08, 0.48);
+}
+
+function playLose(){
+    tono(392, 0.18, 'sawtooth', 0.05);
+    tono(330, 0.18, 'sawtooth', 0.05, 0.18);
+    tono(262, 0.35, 'sawtooth', 0.06, 0.36);
+}
+
+        function ajustarPantalla() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        ajustarPantalla();
+        window.addEventListener('resize', ajustarPantalla);
+
+        // --- MAPA DE LA NAVE ---
+        const tamañoCelda = 64;
+        const mapa = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+            [1,0,0,1,1,0,1,0,0,1,1,1,1,0,0,1],
+            [1,0,0,1,0,0,0,0,0,0,0,0,1,0,0,1],
+            [1,0,0,1,0,0,0,0,0,0,0,0,1,0,0,1],
+            [1,0,0,1,1,1,1,1,0,1,1,1,1,0,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+        const mapaAncho = mapa[0].length;
+        const mapaAlto = mapa.length;
+
+        // --- VARIABLES DE JUEGO ---
+        let jugX, jugY, jugAngulo, juegoActivo, vidaJugador, laserDibujado, curacionDibujada;
+        let aliens = [];
+        let alienLetal = {};
+        let gatito = {};
+        let tiempoRestante; // Segundos restantes
+        let intervaloTiempo;
+        const velocidad = 4;
+        const fov = Math.PI / 3;
+        const teclas = { w: false, a: false, s: false, d: false };
+
+        function obtenerPosicionLibre() {
+            let x, y, enPared = true;
+            while(enPared) {
+                let celdaX = Math.floor(Math.random() * mapaAncho);
+                let celdaY = Math.floor(Math.random() * mapaAlto);
+                if(mapa[celdaY][celdaX] === 0) {
+                    x = (celdaX * tamañoCelda) + (tamañoCelda / 2);
+                    y = (celdaY * tamañoCelda) + (tamañoCelda / 2);
+                    enPared = false;
+                }
+            }
+            return { x, y };
+        }
+
+        function actualizarTemporizador() {
+            if (!juegoActivo) return;
+            
+            tiempoRestante--;
+            
+            let minutos = Math.floor(tiempoRestante / 60);
+            let segundos = tiempoRestante % 60;
+            
+            // Añadir ceros a la izquierda para el formato de reloj
+            let minTexto = minutos < 10 ? '0' + minutos : minutos;
+            let segTexto = segundos < 10 ? '0' + segundos : segundos;
+            
+            uiTemporizador.innerText = `${minTexto}:${segTexto}`;
+            
+            if (tiempoRestante <= 0) {
+                // VICTORIA POR TIEMPO AGUANTADO
+                juegoActivo = false;
+                clearInterval(intervaloTiempo);
+                document.exitPointerLock?.();
+                playWin();
+pantallaVictory.style.display = "flex";
+            }
+        }
+
+        function iniciarValores() {
+            jugX = 120;
+            jugY = 120;
+            jugAngulo = 0;
+            vidaJugador = 100;
+            juegoActivo = true;
+            laserDibujado = false;
+            curacionDibujada = 0;
+            tiempoRestante = 300; // 5 minutos = 300 segundos
+            uiTemporizador.innerText = "05:00";
+            uiVida.style.width = "100%";
+            pantallaGameOver.style.display = "none";
+            pantallaVictory.style.display = "none";
+
+            // Controlar el temporizador cada segundo de forma precisa
+            clearInterval(intervaloTiempo);
+            intervaloTiempo = setInterval(actualizarTemporizador, 1000);
+
+            aliens = [
+                { x: 300, y: 150, dirX: 1, dirY: 0, tipo: "inofensivo", emoji: "👾", colorShadow: "#ff00ea", vida: 100, vidaMax: 100 },
+                { x: 500, y: 150, dirX: 0, dirY: 1, tipo: "inofensivo", emoji: "👾", colorShadow: "#ff00ea", vida: 100, vidaMax: 100 },
+                { x: 800, y: 200, dirX: -1, dirY: 0, tipo: "inofensivo", emoji: "👾", colorShadow: "#ff00ea", vida: 100, vidaMax: 100 },
+                { x: 850, y: 500, dirX: 0, dirY: -1, tipo: "inofensivo", emoji: "👾", colorShadow: "#ff00ea", vida: 100, vidaMax: 100 },
+                { x: 500, y: 500, dirX: 1, dirY: 1, tipo: "inofensivo", emoji: "👾", colorShadow: "#ff00ea", vida: 100, vidaMax: 100 },
+                { x: 200, y: 500, dirX: -1, dirY: 0, tipo: "inofensivo", emoji: "👾", colorShadow: "#ff00ea", vida: 100, vidaMax: 100 },
+                { x: 150, y: 450, dirX: 0, dirY: 1, tipo: "inofensivo", emoji: "👾", colorShadow: "#ff00ea", vida: 100, vidaMax: 100 },
+                { x: 750, y: 450, dirX: 1, dirY: 0, tipo: "inofensivo", emoji: "👾", colorShadow: "#ff00ea", vida: 100, vidaMax: 100 }
+            ];
+
+            alienLetal = { x: 500, y: 300, dirX: -1, dirY: 1, tipo: "letal", emoji: "👾", colorShadow: "#ff00ea", vel: 2.4, vida: 10, vidaMax: 10, activo: true };
+            uiVidaLetal.innerText = `> HP Enemigo: ${alienLetal.vida}`;
+
+            let posGato = obtenerPosicionLibre();
+            gatito = { x: posGato.x, y: posGato.y, tipo: "gatito", emoji: "🐱", colorShadow: "#ffaa00", activo: true };
+        }
+
+        // --- CONTROLES ---
+        window.addEventListener('keydown', (e) => { 
+            const t = e.key.toLowerCase(); 
+            if (t in teclas) teclas[t] = true; 
+            if (t === 'e' && juegoActivo) curarAliensCercanos();
+        });
+        window.addEventListener('keyup', (e) => { const t = e.key.toLowerCase(); if (t in teclas) teclas[t] = false; });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!juegoActivo) return;
+            if (document.pointerLockElement === canvas) {
+                jugAngulo += e.movementX * 0.003;
+            } else {
+                jugAngulo += (e.clientX - (window.innerWidth / 2)) * 0.0001; 
+            }
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (!juegoActivo) return;
+            if (document.pointerLockElement !== canvas) { canvas.requestPointerLock?.(); return; }
+
+            if (e.button !== 0) return;
+
+            laserDibujado = true;
+            playLaser();
+armaLaser.classList.add('recat');
+            setTimeout(() => armaLaser.classList.remove('recat'), 60);
+
+            // Disparo al letal
+            if (alienLetal.activo) {
+                let a = Math.atan2(alienLetal.y-jugY, alienLetal.x-jugX)-jugAngulo;
+                while(a<-Math.PI)a+=Math.PI*2;
+                while(a>Math.PI)a-=Math.PI*2;
+                if(Math.abs(a)<0.1 && alienLetal.dist<500){
+                    alienLetal.vida -= 1;
+                    uiVidaLetal.innerText=`> HP Enemigo: ${alienLetal.vida}`;
+                    alienLetal.x += Math.cos(jugAngulo)*35;
+                    alienLetal.y += Math.sin(jugAngulo)*35;
+                    if(alienLetal.vida<=0){
+                        alienLetal.activo=false;
+                        juegoActivo=false;
+                        clearInterval(intervaloTiempo);
+                        document.exitPointerLock?.();
+                        playWin();
+                        pantallaVictory.style.display="flex";
+                        return;
+                    }
+                }
+            }
+
+            // Disparo a inocentes
+            for(const alien of aliens){
+                const a=Math.atan2(alien.y-jugY,alien.x-jugX)-jugAngulo;
+                let ang=a;
+                while(ang<-Math.PI)ang+=Math.PI*2;
+                while(ang>Math.PI)ang-=Math.PI*2;
+                const d=Math.hypot(alien.x-jugX,alien.y-jugY);
+                if(Math.abs(ang)<0.1 && d<500){
+                    alien.vida-=10;
+                    if(alien.vida<=0){
+                        juegoActivo=false;
+                        clearInterval(intervaloTiempo);
+                        document.exitPointerLock?.();
+                        pantallaGameOver.querySelector('h1').innerText='MISIÓN FALLIDA';
+                        pantallaGameOver.querySelector('p').innerText='Has eliminado a un alien inofensivo.';
+                        pantallaGameOver.style.display='flex';
+                    }
+                    break;
+                }
+            }
+        });
+
+        function curarAliensCercanos() {
+            let curoAlguien = false;
+            aliens.forEach(alien => {
+                let d = Math.sqrt(Math.pow(alien.x - jugX, 2) + Math.pow(alien.y - jugY, 2));
+                if (d < 180 && alien.vida < alien.vidaMax) {
+                    alien.vida = Math.min(alien.vida + 40, alien.vidaMax);
+                    curoAlguien = true;
+                }
+            });
+            if (curoAlguien) curacionDibujada = 10;
+        }
+
+        function procesarIA() {
+            aliens.forEach(alien => {
+                let sigX = alien.x + alien.dirX * 1.5; let sigY = alien.y + alien.dirY * 1.5;
+                let gridX = Math.floor(sigX / tamañoCelda); let gridY = Math.floor(sigY / tamañoCelda);
+                if (mapa[gridY]?.[gridX] === 0) { alien.x = sigX; alien.y = sigY; } 
+                else { let a = Math.random() * Math.PI * 2; alien.dirX = Math.cos(a); alien.dirY = Math.sin(a); }
+            });
+
+            if (alienLetal.activo) {
+                let objetivoX = null; let objetivoY = null; let rangoDeteccion = 300;
+                let distAlJugador = Math.sqrt(Math.pow(alienLetal.x - jugX, 2) + Math.pow(alienLetal.y - jugY, 2));
+
+                if (distAlJugador < rangoDeteccion) {
+                    objetivoX = jugX; objetivoY = jugY;
+                } else {
+                    let menorDistancia = rangoDeteccion;
+                    aliens.forEach(alien => {
+                        let d = Math.sqrt(Math.pow(alienLetal.x - alien.x, 2) + Math.pow(alienLetal.y - alien.y, 2));
+                        if (d < menorDistancia) { menorDistancia = d; objetivoX = alien.x; objetivoY = alien.y; }
+                    });
+                }
+
+                if (objetivoX !== null && objetivoY !== null) {
+                    let anguloHaciaPresaReal = Math.atan2(objetivoY - alienLetal.y, objetivoX - alienLetal.x);
+                    alienLetal.dirX = Math.cos(anguloHaciaPresaReal); alienLetal.dirY = Math.sin(anguloHaciaPresaReal);
+                }
+
+                let lSigX = alienLetal.x + alienLetal.dirX * alienLetal.vel;
+                let lSigY = alienLetal.y + alienLetal.dirY * alienLetal.vel;
+                let lGridX = Math.floor(lSigX / tamañoCelda); let lGridY = Math.floor(lSigY / tamañoCelda);
+
+                if (mapa[lGridY]?.[lGridX] === 0) { alienLetal.x = lSigX; alienLetal.y = lSigY; } 
+                else { let a = Math.random() * Math.PI * 2; alienLetal.dirX = Math.cos(a); alienLetal.dirY = Math.sin(a); }
+
+                aliens.forEach(alien => {
+                    let d = Math.sqrt(Math.pow(alien.x - alienLetal.x, 2) + Math.pow(alien.y - alienLetal.y, 2));
+                    if (d < 26) alien.vida -= 1.2;
+                });
+
+                aliens = aliens.filter(alien => alien.vida > 0);
+
+                if (distAlJugador < 28) {
+                    vidaJugador -= 0.8;
+                    if (vidaJugador < 0) vidaJugador = 0;
+                    uiVida.style.width = `${Math.min(vidaJugador, 100)}%`;
+                    if (vidaJugador <= 0) { 
+                        juegoActivo = false; 
+                        clearInterval(intervaloTiempo);
+                        document.exitPointerLock?.(); 
+                        playLose();
+pantallaGameOver.style.display = "flex"; 
+                    }
+                }
+            }
+
+            uiContador.innerText = `> Biomasa Viva: ${aliens.length}`;
+
+            if (gatito.activo) {
+                let distAlGato = Math.sqrt(Math.pow(gatito.x - jugX, 2) + Math.pow(gatito.y - jugY, 2));
+                if (distAlGato < 30) {
+                    playMeow();
+gatito.activo = false;
+                    vidaJugador += 35;
+                    uiVida.style.width = `${Math.min(vidaJugador, 100)}%`;
+                }
+            }
+        }
+
+        function renderizarEntorno() {
+            const ancho = canvas.width; const alto = canvas.height;
+            const incrementoAngulo = fov / ancho;
+            let anguloRayo = jugAngulo - (fov / 2);
+            const bufferDistancias = new Array(ancho);
+
+            let desplazarX = (jugAngulo * (180 / Math.PI)) * 4; 
+            suelo.style.backgroundPosition = `${desplazarX - jugX}px ${jugY}px`;
+            techo.style.backgroundPosition = `${desplazarX - jugX}px ${-jugY}px`;
+
+            for (let i = 0; i < ancho; i++) {
+                anguloRayo = (anguloRayo + Math.PI * 2) % (Math.PI * 2);
+                let distancia = 0; let golpePared = false;
+                const cos = Math.cos(anguloRayo); const sin = Math.sin(anguloRayo);
+
+                while (!golpePared && distancia < 700) {
+                    distancia += 2;
+                    let cX = Math.floor((jugX + cos * distancia) / tamañoCelda);
+                    let cY = Math.floor((jugY + sin * distancia) / tamañoCelda);
+                    if (cX < 0 || cX >= mapaAncho || cY < 0 || cY >= mapaAlto) { golpePared = true; distancia = 700; }
+                    else if (mapa[cY][cX] > 0) { golpePared = true; }
+                }
+
+                let distCorregida = distancia * Math.cos(anguloRayo - jugAngulo);
+                bufferDistancias[i] = distCorregida;
+
+                let alturaPared = (tamañoCelda * alto) / distCorregida;
+                if (alturaPared > alto) alturaPared = alto;
+                let techoY = (alto / 2) - (alturaPared / 2);
+
+                let colorPared = ctx.createLinearGradient(i, techoY, i, techoY + alturaPared);
+                colorPared.addColorStop(0, `hsla(305, 100%, 75%, 1)`);
+                colorPared.addColorStop(0.5, `hsla(181, 100%, 80%, 1)`);
+                colorPared.addColorStop(1, `hsla(305, 100%, 65%, 1)`);
+
+                ctx.fillStyle = colorPared; ctx.fillRect(i, techoY, 1, alturaPared);
+                anguloRayo += incrementoAngulo;
+            }
+
+            let todosLosSprites = [...aliens];
+            if (alienLetal.activo) todosLosSprites.push(alienLetal);
+            if (gatito.activo) todosLosSprites.push(gatito);
+            
+            todosLosSprites.forEach(s => s.dist = Math.sqrt(Math.pow(s.x - jugX, 2) + Math.pow(s.y - jugY, 2)));
+            todosLosSprites.sort((a, b) => b.dist - a.dist);
+
+            todosLosSprites.forEach(s => {
+                let anguloSprite = Math.atan2(s.y - jugY, s.x - jugX) - jugAngulo;
+                while (anguloSprite < -Math.PI) anguloSprite += Math.PI * 2;
+                while (anguloSprite > Math.PI) anguloSprite -= Math.PI * 2;
+
+                if (Math.abs(anguloSprite) < fov) {
+                    let tamaño = (tamañoCelda * alto) / s.dist;
+                    let screenX = (ancho / 2) + (Math.tan(anguloSprite) * (ancho / 2));
+                    let colX = Math.floor(screenX);
+                    if (colX >= 0 && colX < ancho && s.dist < bufferDistancias[colX]) {
+                        ctx.font = `${tamaño * 0.8}px Arial`;
+                        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+                        ctx.shadowBlur = s.tipo === "letal" ? 25 : 12;
+                        ctx.shadowColor = s.colorShadow;
+                        ctx.fillText(s.emoji, screenX, alto / 2);
+                        ctx.shadowBlur = 0;
+
+                        if (s.tipo === "inofensivo" || s.tipo === "letal") {
+                            let barraAncho = tamaño * 0.6;
+                            let barraAlto = tamaño * 0.08;
+                            let barraX = screenX - (barraAncho / 2);
+                            let barraY = (alto / 2) - (tamaño * 0.55);
+
+                            ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+                            ctx.fillRect(barraX, barraY, barraAncho, barraAlto);
+
+                            let pctVida = s.vida / s.vidaMax;
+                            ctx.fillStyle = pctVida > 0.4 ? "#00ff66" : "#ff0033";
+                            ctx.fillRect(barraX, barraY, barraAncho * pctVida, barraAlto);
+                        }
+                    }
+                }
+            });
+
+            if (laserDibujado) {
+                ctx.beginPath(); ctx.strokeStyle = '#00fff2'; ctx.lineWidth = 6;
+                ctx.shadowBlur = 20; ctx.shadowColor = '#00fff2';
+                ctx.moveTo(ancho * 0.65, alto); ctx.lineTo(ancho / 2, alto / 2);
+                ctx.stroke(); ctx.shadowBlur = 0;
+                laserDibujado = false;
+            }
+
+            if (curacionDibujada > 0) {
+                ctx.fillStyle = `rgba(0, 255, 100, ${curacionDibujada * 0.025})`;
+                ctx.fillRect(0, 0, ancho, alto);
+                curacionDibujada--;
+            }
+        }
+
+        function bucle() {
+            if (!juegoActivo) return;
+
+            let nuevoX = jugX; let nuevoY = jugY;
+            if (teclas.w) { nuevoX += Math.cos(jugAngulo) * velocidad; nuevoY += Math.sin(jugAngulo) * velocidad; }
+            if (teclas.s) { nuevoX -= Math.cos(jugAngulo) * velocidad; nuevoY -= Math.sin(jugAngulo) * velocidad; }
+            if (teclas.a) { nuevoX += Math.sin(jugAngulo) * velocidad; nuevoY -= Math.cos(jugAngulo) * velocidad; }
+            if (teclas.d) { nuevoX -= Math.cos(jugAngulo) * velocidad; nuevoY += Math.sin(jugAngulo) * velocidad; }
+
+            let gX = Math.floor(nuevoX / tamañoCelda); let gY = Math.floor(nuevoY / tamañoCelda);
+            if (mapa[gY]?.[gX] === 0) { jugX = nuevoX; jugY = nuevoY; }
+
+            procesarIA();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            renderizarEntorno();
+
+            requestAnimationFrame(bucle);
+        }
+
+        function reiniciarJuego() {
+            iniciarValores();
+            requestAnimationFrame(bucle);
+        }
+
+        iniciarValores();
+        requestAnimationFrame(bucle);
+    </script>
+<script>
+['up','down','left','right'].forEach(id=>{const m={up:'w',down:'s',left:'a',right:'d'}[id];const e=document.getElementById(id);e.ontouchstart=ev=>{ev.preventDefault();teclas[m]=true};e.ontouchend=ev=>{teclas[m]=false}});document.getElementById('fire').ontouchstart=e=>{e.preventDefault();canvas.requestPointerLock?.();canvas.dispatchEvent(new MouseEvent('mousedown',{button:0}))};</script>
+<style>
+#touchControls{position:fixed;inset:0;pointer-events:none;z-index:50}
+.tc{position:absolute;width:70px;height:70px;border-radius:50%;background:rgba(255,255,255,.15);border:2px solid #0ff;pointer-events:auto;touch-action:none}
+#up{left:90px;bottom:150px}#down{left:90px;bottom:10px}#left{left:10px;bottom:80px}#right{left:170px;bottom:80px}#fire{right:25px;bottom:70px;width:90px;height:90px;border-color:#f0f}
+@media (pointer:fine){#touchControls{display:none}}
+</style>
+<div id="touchControls">
+<div class="tc" id="up"></div><div class="tc" id="down"></div><div class="tc" id="left"></div><div class="tc" id="right"></div><div class="tc" id="fire"></div>
+</div>
+
+<div id="joyZone"></div>
+<button id="fireBtn">🔫</button>
+<button id="healBtn">💊</button>
+<script>
+if(window.nipplejs){
+ const joy=nipplejs.create({zone:document.getElementById('joyZone'),mode:'static',position:{left:'90px',bottom:'90px'},color:'cyan'});
+ let mv={x:0,y:0};
+ joy.on('move',(_,d)=>{mv.x=d.vector.x;mv.y=-d.vector.y;});
+ joy.on('end',()=>{mv={x:0,y:0};});
+ const old=bucle;
+ bucle=function(){
+   if(juegoActivo){
+    if(Math.hypot(mv.x,mv.y)>0.1){
+      let nx=jugX+mv.x*velocidad, ny=jugY-mv.y*velocidad;
+      let gx=Math.floor(nx/tamañoCelda),gy=Math.floor(ny/tamañoCelda);
+      if(mapa[gy]?.[gx]===0){jugX=nx;jugY=ny;}
+    }
+   }
+   old();
+ }
+ document.getElementById('fireBtn').onclick=()=>canvas.dispatchEvent(new MouseEvent('mousedown',{button:0}));
+ document.getElementById('healBtn').onclick=()=>curarAliensCercanos();
+ let sx=null;
+ document.addEventListener('touchmove',e=>{
+  if(e.touches.length==1&&e.touches[0].clientX>window.innerWidth/2){
+    if(sx==null)sx=e.touches[0].clientX;
+    let dx=e.touches[0].clientX-sx; sx=e.touches[0].clientX; jugAngulo+=dx*0.01;
+  }
+ },{passive:true});
+ document.addEventListener('touchend',()=>sx=null);
+}
+</script>
+</body>
+</html>
